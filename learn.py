@@ -1,10 +1,13 @@
 import sys
 from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QMessageBox
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QObject, pyqtSignal
 from pykakasi import kakasi
 import time
 import pandas as pd
 import os
+import json
+import functools
+import math
 
 
 class WeightWord:
@@ -23,16 +26,183 @@ class LearningWindow(QWidget):
         self.windowLayout()
 
         self.checkUpdate()
+        self.checkToday()
+        self.getJsonData()
+        self.getStart()
+
+    def getExpValue(self, x, den):
+        return math.exp(-(x - 1) / den)
+
+    def addKanji(self, id):
+        kanji = self.pd.loc[id]["word"]
+        self.kanji.setText(kanji)
+
+    def setTabValue(self, idx, attr, value):
+        self.pd.loc[idx, attr] = value
+
+    def endLearning(self):
+        for key in self.repeat.keys():
+            # 根据重复增加权重
+            sum = 0.0
+            add = 0
+            for x in range(1, int(self.repeat[key]) + 1):
+                sum += self.getExpValue(x, 5)
+                if sum >= 1:
+                    add += 2
+                    sum = 0.0
+            self.pd.loc[int(key), "weight"] = min(
+                100, int(self.pd.loc[int(key)]["weight"]) + add)
+
+            # 根据时间增加权重并改变 day 值
+            v = float(self.pd.loc[int(key)]["accum"])
+            day = int(self.pd.loc[int(key)]["day"])
+            if day == -1:
+                day = 1
+            else:
+                day += 1
+            v += self.getExpValue(day, 20)
+            if v >= 1:
+                v = 0.0
+                self.pd.loc[int(key), "weight"] = min(
+                    100, int(self.pd.loc[int(key)]["weight"]) + 5)
+            self.pd.loc[int(key), "day"] = day
+            self.pd.loc[int(key), "accum"] = v
+
+    def getNewWord(self):
+        idx = self.queue[0]
+        self.queue.remove(idx)
+
+        if len(self.queue) < 1:
+            self.backToMain(1)
+            self.endLearning()
+            self.saveToFile()
+            return
+
+        idx = int(self.queue[0])
+        self.hira.setText(self.pd.loc[idx]["pro"])
+        self.kanji.setText("")
+        # print(self.queue)
+
+    def saveToFile(self):
+        # 保存 pro.csv 和 today.json 文件
+        self.pd.to_csv("data/pro.csv", index=False)
+        data = {"time": time.strftime(
+            "%d", time.localtime()), "words": self.getStrFromList(self.queue), "repeat": self.repeat}
+        self.writeJson(json.dumps(data))
+
+    def recognized(self):
+        idx = int(self.queue[0])
+        if self.kanji.text() == "":
+            self.addKanji(idx)
+        else:
+            # print(self.repeat[str(idx)])
+            if self.repeat[str(idx)] == 0:
+                self.setTabValue(idx, "weight", max(
+                    0, int(self.pd.loc[idx]["weight"]) - 2))
+            # print(" ----------- change ----------- ")
+            # print(self.pd.loc[idx])
+            self.saveToFile()
+            self.getNewWord()
+
+    def disRecognized(self):
+        if len(self.queue) == 0:
+            self.backToMain(2)
+            return
+        idx = int(self.queue[0])
+        if self.kanji.text() == "":
+            self.addKanji(idx)
+        else:
+            self.repeat[str(idx)] = str(int(self.repeat[str(idx)]) + 1)
+            self.queue.insert(min(5, len(self.queue)), str(idx))
+            self.queue.insert(min(10, len(self.queue)), str(idx))
+            # print(" ----------- change ----------- ")
+            # print("repeat = " + self.repeat[str(idx)])
+            self.saveToFile()
+            self.getNewWord()
+
+    def getStart(self):
+        self.pd = pd.read_csv("data/pro.csv", header=0, encoding="utf-8")
+        self.hira.setText(self.pd.loc[int(self.queue[0])]["pro"])
+        self.kanji.setText("")
+
+    def getJsonData(self):
+        org = open("data/today.json", "r").read()
+        data = json.loads(org)
+        self.queue = data["words"].split(",")
+        self.repeat = data["repeat"]
+        # print(self.queue)
+
+    def writeJson(self, str):
+        fp = open("data/today.json", "w")
+        fp.write(str)
+        fp.close()
+
+    def checkToday(self):
+        # 检查 today.json 文件是否存在，不存在新建
+        if not os.path.exists("data/today.json"):
+            self.writeJson('{"time" : "-1", "words": "", "repeat", ""}')
+        org = open("data/today.json", "r").read()
+        data = json.loads(org)
+        today = time.strftime("%d", time.localtime())
+        if today != data["time"]:
+            print("updating today's words...")
+            self.getTodayWords()
+
+    def getStrFromList(self, my_list):
+        str = ""
+        for i in range(0, len(my_list)):
+            if not i == 0:
+                str += ","
+            str += my_list[i]
+        return str
+
+    def myCmp(self, x, y):
+        if x.w > y.w:
+            return -1
+        elif x.w == y.w and x.o < y.o:
+            return -1
+        return 1
+
+    def getTodayWords(self):
+        c = pd.read_csv("data/pro.csv", header=0, encoding='utf-8')
+        words = []
+        for idx in range(0, len(c)):
+            words.append(WeightWord(
+                idx, c.loc[idx]["weight"], int(c.loc[idx]["day"])))
+        words = sorted(words, key=functools.cmp_to_key(
+            lambda a, b: self.myCmp(a, b)))
+        new_count = 0
+        old_count = 0
+        res = []
+        for word in words:
+            if word.t == -1 and new_count < 100:
+                res.append(word.o)
+                new_count += 1
+            elif word.t != -1 and old_count < 400:
+                res.append(word.o)
+                old_count += 1
+        words_str = ""
+        repeat_json = {}
+        for i in range(0, len(res)):
+            if not i == 0:
+                words_str += ","
+            words_str += str(res[i])
+            repeat_json[str(res[i])] = 0
+        data = {"time": time.strftime(
+            "%d", time.localtime()), "words": words_str, "repeat": repeat_json}
+        self.writeJson(json.dumps(data))
 
     def checkUpdate(self):
         print("—————————————— check update ——————————————")
         words = self.getOriginWordsList()
+
+        # 检查 csv 文件是否存在，不存在则创建
         if not os.path.exists("data/pro.csv"):
             fp = open("data/pro.csv", "w")
             fp.write("word,pro,weight,day,accum\n")
             fp.close()
+
         csv = pd.read_csv("data/pro.csv", header=0, encoding='utf-8')
-        print(csv)
         if len(csv) < len(words):
             print("update...")
             kakasi = self.setKakasi()
@@ -41,6 +211,8 @@ class LearningWindow(QWidget):
                                      "weight": 50, "day": -1, "accum": 0.0}
             csv.to_csv("data/pro.csv", index=False)
             print("pro update finish.")
+        else:
+            print("has been updated")
 
     def setKakasi(self):
         k = kakasi()
@@ -58,22 +230,27 @@ class LearningWindow(QWidget):
             words += self.dealEnter(line).split("、")
         return words
 
-    def backToMain(self):
-        self.callback()
-        self.hide()
+    def backToMain(self, status):
+        self.callback(status)
+        self.close()
 
     def windowLayout(self):
-        hira = QLabel("さくら")
-        hira.setAlignment(Qt.AlignCenter)
-        hira.setStyleSheet("font-size: 30px")
-        kanji = QLabel("桜")
-        kanji.setAlignment(Qt.AlignCenter)
-        kanji.setStyleSheet("font-size: 30px")
+        self.hira = QLabel("さくら")
+        self.hira.setAlignment(Qt.AlignCenter)
+        self.hira.setStyleSheet("font-size: 40px;")
+        self.kanji = QLabel("桜")
+        self.kanji.setAlignment(Qt.AlignCenter)
+        self.kanji.setStyleSheet("font-size: 25px; color: #555;")
 
-        ybtn = QPushButton("yes(1)", self)
-        nbtn = QPushButton("no(2)", self)
-        qbtn = QPushButton("quit", self)
-        qbtn.clicked.connect(self.backToMain)
+        ybtn = QPushButton("Yeap", self)
+        nbtn = QPushButton("Oops", self)
+        qbtn = QPushButton("Quit", self)
+        qbtn.clicked.connect(self.backToMain, 0)
+        ybtn.clicked.connect(self.recognized)
+        nbtn.clicked.connect(self.disRecognized)
+        ybtn.setStyleSheet("width: 70px;")
+        nbtn.setStyleSheet("width: 70px;")
+        qbtn.setStyleSheet("width: 70px;")
 
         hbox = QHBoxLayout()
         hbox.addStretch()
@@ -84,9 +261,12 @@ class LearningWindow(QWidget):
 
         vbox = QVBoxLayout()
         vbox.addStretch()
-        vbox.addWidget(hira)
-        vbox.addWidget(kanji)
+        vbox.addWidget(self.hira)
+        vbox.addWidget(self.kanji)
+        vbox.addSpacing(30)
         vbox.addLayout(hbox)
         vbox.addStretch()
 
         self.setLayout(vbox)
+
+        print("finish layout")

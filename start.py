@@ -2,6 +2,9 @@ import sys
 from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QMessageBox
 from PyQt5.QtCore import Qt
 from learn import LearningWindow
+import os
+import json
+import time
 
 
 class MainWindow(QWidget):
@@ -12,15 +15,45 @@ class MainWindow(QWidget):
         self.windowLayout()
         self.show()
 
+    def writeJson(self, str):
+        fp = open("data/today.json", "w")
+        fp.write(str)
+        fp.close()
+
+    def checkToday(self):
+        # 检查 today.json 文件是否存在，不存在新建
+        print("check today.json")
+        if not os.path.exists("data/today.json"):
+            self.writeJson('{"time" : "-1", "words": "", "repeat": ""}')
+        org = open("data/today.json", "r").read()
+        print(org)
+        data = json.loads(org)
+        today = time.strftime("%d", time.localtime())
+        if data["time"] == today and len(data["words"]) < 2:
+            print("today has been finished")
+            return 1
+        return 0
+
     def startLearning(self):
         print("start learning")
-        self.learn = LearningWindow(self.endLearng)
-        self.learn.show()
-        self.hide()
+        if not self.checkToday():
+            self.learn = LearningWindow(self.endLearng)
+            self.learn.show()
+            self.learn.setAttribute(Qt.WA_DeleteOnClose)
+            self.hide()
+        else:
+            QMessageBox.about(
+                self, "Oops!", "Congrandualtion!\nToday's words have been finished yet!")
 
-    def endLearng(self):
+    def endLearng(self, status):
+        if status == 1:
+            QMessageBox.about(
+                self, "Oops!", "Congrandualtion!\nToday's words have been finished yet!")
         print("end learning")
         self.show()
+
+    def windowClose(self):
+        self.close()
 
     def windowLayout(self):
         wel = QLabel("WELCOME TO")
@@ -33,11 +66,11 @@ class MainWindow(QWidget):
         btbox = QHBoxLayout()
         btn_start = QPushButton("START")
         btn_history = QPushButton("HISTORY")
-        btbox.addSpacing(30)
+        btbox.addSpacing(20)
         btbox.addWidget(btn_start)
-        btbox.addSpacing(30)
+        btbox.addSpacing(20)
         btbox.addWidget(btn_history)
-        btbox.addSpacing(30)
+        btbox.addSpacing(20)
         btn_start.clicked.connect(self.startLearning)
 
         vbox = QVBoxLayout()
