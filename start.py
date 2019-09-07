@@ -10,7 +10,7 @@ import time
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.resize(600, 400)
+        self.resize(800, 600)
         self.setWindowTitle('Pronunciation Practice')
         self.windowLayout()
         self.show()
@@ -26,7 +26,7 @@ class MainWindow(QWidget):
         if not os.path.exists("data/today.json"):
             self.writeJson('{"time" : "-1", "words": "", "repeat": ""}')
         org = open("data/today.json", "r").read()
-        print(org)
+        # print(org)
         data = json.loads(org)
         today = time.strftime("%d", time.localtime())
         if data["time"] == today and len(data["words"]) < 2:
@@ -43,7 +43,7 @@ class MainWindow(QWidget):
             self.hide()
         else:
             QMessageBox.about(
-                self, "Oops!", "Congrandualtion!\nToday's words have been finished yet!")
+                self, "Oops!", "Why not have a rest?\nToday's words have been finished yet.")
 
     def endLearng(self, status):
         if status == 1:

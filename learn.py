@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QMessageBox
+from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QMessageBox, QWidget, QInputDialog
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
 from pykakasi import kakasi
 import time
@@ -18,10 +18,12 @@ class WeightWord:
 
 
 class LearningWindow(QWidget):
+    now_idx = 0
+
     def __init__(self, callback):
         super(LearningWindow, self).__init__()
         self.callback = callback
-        self.resize(600, 400)
+        self.resize(800, 600)
         self.setWindowTitle('Pronunciation Practice')
         self.windowLayout()
 
@@ -36,6 +38,11 @@ class LearningWindow(QWidget):
     def addKanji(self, id):
         kanji = self.pd.loc[id]["word"]
         self.kanji.setText(kanji)
+        if type(self.pd.loc[id]["note"]) != type("") or self.pd.loc[id]["note"] == "nan":
+            self.note.setText("NOTE:\n" + "")
+        else:
+            self.note.setText(
+                "NOTE:\n" + self.pd.loc[id]["note"].replace("[enter]", "\n"))
 
     def setTabValue(self, idx, attr, value):
         self.pd.loc[idx, attr] = value
@@ -79,8 +86,11 @@ class LearningWindow(QWidget):
             return
 
         idx = int(self.queue[0])
+        self.now_idx = idx
         self.hira.setText(self.pd.loc[idx]["pro"])
         self.kanji.setText("")
+        self.left.setText("number of the rest words: " + str(len(self.queue)))
+        self.note.setText("NOTE:\n")
         # print(self.queue)
 
     def saveToFile(self):
@@ -113,8 +123,8 @@ class LearningWindow(QWidget):
             self.addKanji(idx)
         else:
             self.repeat[str(idx)] = str(int(self.repeat[str(idx)]) + 1)
-            self.queue.insert(min(5, len(self.queue)), str(idx))
-            self.queue.insert(min(10, len(self.queue)), str(idx))
+            self.queue.insert(min(6, len(self.queue)), str(idx))
+            self.queue.insert(min(12, len(self.queue)), str(idx))
             # print(" ----------- change ----------- ")
             # print("repeat = " + self.repeat[str(idx)])
             self.saveToFile()
@@ -123,7 +133,9 @@ class LearningWindow(QWidget):
     def getStart(self):
         self.pd = pd.read_csv("data/pro.csv", header=0, encoding="utf-8")
         self.hira.setText(self.pd.loc[int(self.queue[0])]["pro"])
+        self.now_idx = int(self.queue[0])
         self.kanji.setText("")
+        self.left.setText("number of the rest words: " + str(len(self.queue)))
 
     def getJsonData(self):
         org = open("data/today.json", "r").read()
@@ -199,7 +211,7 @@ class LearningWindow(QWidget):
         # 检查 csv 文件是否存在，不存在则创建
         if not os.path.exists("data/pro.csv"):
             fp = open("data/pro.csv", "w")
-            fp.write("word,pro,weight,day,accum\n")
+            fp.write("word,pro,weight,day,accum,note\n")
             fp.close()
 
         csv = pd.read_csv("data/pro.csv", header=0, encoding='utf-8')
@@ -208,7 +220,7 @@ class LearningWindow(QWidget):
             kakasi = self.setKakasi()
             for idx in range(len(csv), len(words)):
                 csv.loc[len(csv)] = {"word": words[idx], "pro": kakasi.do(words[idx]),
-                                     "weight": 50, "day": -1, "accum": 0.0}
+                                     "weight": 50, "day": -1, "accum": 0.0, "note": "nan"}
             csv.to_csv("data/pro.csv", index=False)
             print("pro update finish.")
         else:
@@ -231,8 +243,25 @@ class LearningWindow(QWidget):
         return words
 
     def backToMain(self, status):
+        self.saveToFile()
         self.callback(status)
         self.close()
+
+    def addNotes(self, event):
+        # print(self.now_idx)
+        temp = self.pd.loc[self.now_idx]["note"]
+        now_note = ""
+        if type(temp) != type(""):
+            now_note = ""
+        else:
+            now_note = temp
+        value, ok = QInputDialog.getMultiLineText(
+            self, "Add notes", "Input your notes", now_note.replace("[enter]", "\n"))
+        if ok:
+            self.note.setText("NOTE:\n" + value)
+            value = value.replace("\n\r", "[enter]").replace(
+                "\n", "[enter]").replace("\r", "[enter]")
+            self.pd.loc[self.now_idx, "note"] = value
 
     def windowLayout(self):
         self.hira = QLabel("さくら")
@@ -241,6 +270,13 @@ class LearningWindow(QWidget):
         self.kanji = QLabel("桜")
         self.kanji.setAlignment(Qt.AlignCenter)
         self.kanji.setStyleSheet("font-size: 25px; color: #555;")
+        self.left = QLabel("xxx")
+        self.left.setAlignment(Qt.AlignCenter)
+        self.left.setStyleSheet("font-size: 15px; color: #777;")
+        # self.input_info = QLabel("Notes:")
+        self.note = QLabel("Note:\n")
+        self.note.setStyleSheet(
+            "font-size: 14px; color: #555; line-height: 24px;")
 
         ybtn = QPushButton("Yeap", self)
         nbtn = QPushButton("Oops", self)
@@ -248,16 +284,30 @@ class LearningWindow(QWidget):
         qbtn.clicked.connect(self.backToMain, 0)
         ybtn.clicked.connect(self.recognized)
         nbtn.clicked.connect(self.disRecognized)
-        ybtn.setStyleSheet("width: 70px;")
-        nbtn.setStyleSheet("width: 70px;")
-        qbtn.setStyleSheet("width: 70px;")
+        ybtn.setStyleSheet("width: 100px;")
+        nbtn.setStyleSheet("width: 100px;")
+        qbtn.setStyleSheet("width: 80px;")
+        add_note = QPushButton("Add Notes", self)
+        add_note.setStyleSheet("width: 80px;")
+        add_note.clicked.connect(self.addNotes)
 
         hbox = QHBoxLayout()
         hbox.addStretch()
         hbox.addWidget(ybtn)
         hbox.addWidget(nbtn)
-        hbox.addWidget(qbtn)
         hbox.addStretch()
+
+        h_input = QHBoxLayout()
+        h_input.addSpacing(165)
+        h_input.addWidget(self.note)
+        h_input.addSpacing(150)
+
+        add_box = QHBoxLayout()
+        add_box.addSpacing(162)
+        add_box.addWidget(add_note)
+        add_box.addSpacing(20)
+        add_box.addWidget(qbtn)
+        add_box.addStretch()
 
         vbox = QVBoxLayout()
         vbox.addStretch()
@@ -265,8 +315,19 @@ class LearningWindow(QWidget):
         vbox.addWidget(self.kanji)
         vbox.addSpacing(30)
         vbox.addLayout(hbox)
+        vbox.addWidget(self.left)
+        # vbox.addWidget(self.input_info)
+        vbox.addSpacing(30)
+        vbox.addLayout(h_input)
+        vbox.addLayout(add_box)
         vbox.addStretch()
 
         self.setLayout(vbox)
+
+        # QWidget.setTabOrder(nbtn, ybtn)
+        QWidget.setTabOrder(ybtn, nbtn)
+        qbtn.setFocusPolicy(Qt.NoFocus)
+        add_note.setFocusPolicy(Qt.NoFocus)
+        # self.input_box.setFocusPolicy(Qt.NoFocus)
 
         print("finish layout")
