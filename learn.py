@@ -55,7 +55,7 @@ class LearningWindow(QWidget):
             for x in range(1, int(self.repeat[key]) + 1):
                 sum += self.getExpValue(x, 5)
                 if sum >= 1:
-                    add += 3
+                    add += 1
                     sum = 0.0
             self.pd.loc[int(key), "weight"] = min(
                 100, int(self.pd.loc[int(key)]["weight"]) + add)
@@ -108,7 +108,7 @@ class LearningWindow(QWidget):
             # print(self.repeat[str(idx)])
             if self.repeat[str(idx)] == 0:
                 self.setTabValue(idx, "weight", max(
-                    0, int(self.pd.loc[idx]["weight"]) - 2))
+                    0, int(self.pd.loc[idx]["weight"]) - 5))
             # print(" ----------- change ----------- ")
             # print(self.pd.loc[idx])
             self.saveToFile()
