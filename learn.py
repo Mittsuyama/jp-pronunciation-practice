@@ -190,7 +190,7 @@ class LearningWindow(QWidget):
             if word.t == -1 and new_count < 100:
                 res.append(word.o)
                 new_count += 1
-            elif word.t != -1 and old_count < 400:
+            elif word.t != -1 and old_count < 300:
                 res.append(word.o)
                 old_count += 1
         words_str = ""
@@ -266,17 +266,19 @@ class LearningWindow(QWidget):
     def windowLayout(self):
         self.hira = QLabel("さくら")
         self.hira.setAlignment(Qt.AlignCenter)
-        self.hira.setStyleSheet("font-size: 40px;")
+        self.hira.setStyleSheet("font-family: sans-serif; font-size: 40px;")
         self.kanji = QLabel("桜")
         self.kanji.setAlignment(Qt.AlignCenter)
-        self.kanji.setStyleSheet("font-size: 25px; color: #555;")
+        self.kanji.setStyleSheet(
+            "font-family: sans-serif; font-size: 25px; color: #555;")
         self.left = QLabel("xxx")
         self.left.setAlignment(Qt.AlignCenter)
-        self.left.setStyleSheet("font-size: 15px; color: #777;")
+        self.left.setStyleSheet(
+            "font-family: sans-serif; font-size: 15px; color: #777;")
         # self.input_info = QLabel("Notes:")
         self.note = QLabel("Note:\n")
         self.note.setStyleSheet(
-            "font-size: 14px; color: #555; line-height: 24px;")
+            "font-family: sans-serif; font-size: 14px; color: #555; line-height: 24px;")
 
         ybtn = QPushButton("Yeap", self)
         nbtn = QPushButton("Oops", self)
