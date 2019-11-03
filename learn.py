@@ -50,15 +50,15 @@ class LearningWindow(QWidget):
     def endLearning(self):
         for key in self.repeat.keys():
             # 根据重复增加权重
-            sum = 0.0
-            add = 0
-            for x in range(1, int(self.repeat[key]) + 1):
-                sum += self.getExpValue(x, 5)
-                if sum >= 1:
-                    add += 1
-                    sum = 0.0
-            self.pd.loc[int(key), "weight"] = min(
-                100, int(self.pd.loc[int(key)]["weight"]) + add)
+            # sum = 0.0
+            # add = 0
+            # for x in range(1, int(self.repeat[key]) + 1):
+            #     sum += self.getExpValue(x, 5)
+            #     if sum >= 1:
+            #         add += 1
+            #         sum = 0.0
+            # self.pd.loc[int(key), "weight"] = min(
+            #     100, int(self.pd.loc[int(key)]["weight"]) + add)
 
             # 根据时间增加权重并改变 day 值
             v = float(self.pd.loc[int(key)]["accum"])
@@ -187,10 +187,10 @@ class LearningWindow(QWidget):
         old_count = 0
         res = []
         for word in words:
-            if word.t == -1 and new_count < 100:
+            if word.t == -1 and new_count < 200:
                 res.append(word.o)
                 new_count += 1
-            elif word.t != -1 and old_count < 300:
+            elif word.t != -1 and old_count < 400:
                 res.append(word.o)
                 old_count += 1
         words_str = ""
